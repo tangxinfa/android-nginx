@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [ $# != 2 ] || ([ $1 != "-c" ] && [ $1 != "-f" ]) ; then
+    echo "usage: $0 -<c|f> <cmd|file>" >> /dev/stderr
+    exit 22 #Invalid argument
+fi
+
+if [ -z "$CROSS_COMPILE_DEVICE_IP" ]; then
+   echo 'Error: CROSS_COMPILE_DEVICE_IP environment variable invalid' >> /dev/stderr
+   exit 22 #Invalid argument
+fi
+
+LOG_FILE=/dev/stderr
+
+if [[ "$CROSS_COMPILE_HOST" = *"android"* ]]; then
+    adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+    adb wait-for-device >>$LOG_FILE 2>&1
+    adb root >>$LOG_FILE 2>&1
+    adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+    adb wait-for-device >>$LOG_FILE 2>&1
+    adb remount >>$LOG_FILE 2>&1
+    adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+    adb wait-for-device >>$LOG_FILE 2>&1
+    if [ $1 == "-f" ]; then
+        tempfile=`mktemp -u XXXXXXXX`
+        tempdir=/tmp/cross-compile
+        adb shell mkdir ${tempdir} >>$LOG_FILE 2>&1
+        adb push $2 ${tempdir}/${tempfile} >>$LOG_FILE 2>&1
+        adb shell "find ${tempdir} -ctime +1 -type f -exec rm {} \; >/dev/null 2>&1; cd ${tempdir} && chmod a+x $tempfile && ./$tempfile"
+    else
+        adb shell $2
+    fi
+else
+    if [ $1 == "-f" ]; then
+        tempfile=`mktemp -u XXXXXXXX`
+        tempdir=/tmp/cross-compile
+        ssh -o StrictHostKeyChecking=no ${CROSS_COMPILE_DEVICE_USER:-root}@${CROSS_COMPILE_DEVICE_IP} -p ${CROSS_COMPILE_DEVICE_PORT:-22} mkdir ${tempdir} >>$LOG_FILE 2>&1
+        scp -o StrictHostKeyChecking=no -P ${CROSS_COMPILE_DEVICE_PORT:-22} $2 ${CROSS_COMPILE_DEVICE_USER:-root}@${CROSS_COMPILE_DEVICE_IP}:${tempdir}/${tempfile} >>$LOG_FILE 2>&1
+        ssh -o StrictHostKeyChecking=no ${CROSS_COMPILE_DEVICE_USER:-root}@${CROSS_COMPILE_DEVICE_IP} -p ${CROSS_COMPILE_DEVICE_PORT:-22} "find ${tempdir} -mmin +1 -type f -exec rm {} \; >/dev/null 2>&1; cd ${tempdir} && chmod a+x $tempfile && ./$tempfile"
+    else
+        ssh -o StrictHostKeyChecking=no ${CROSS_COMPILE_DEVICE_USER:-root}@${CROSS_COMPILE_DEVICE_IP} -p ${CROSS_COMPILE_DEVICE_PORT:-22} $2
+    fi
+fi
