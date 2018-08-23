@@ -31,7 +31,7 @@ ${CURDIR}/build/android-ndk: ${CURDIR}/build/android-ndk-r15c-linux-x86_64.zip
 	mv ${CURDIR}/build/android-ndk-r15c ${CURDIR}/build/android-ndk
 
 ${CURDIR}/build/android-toolchain: ${CURDIR}/build/android-ndk
-	${CURDIR}/build/android-ndk/build/tools/make_standalone_toolchain.py --arch arm64 --api 24 --stl=libc++ --deprecated-headers --install-dir ${CURDIR}/build/android-toolchain
+	${CURDIR}/build/android-ndk/build/tools/make_standalone_toolchain.py --arch arm64 --api 21 --stl=libc++ --deprecated-headers --install-dir ${CURDIR}/build/android-toolchain
 
 
 # Build openssl
@@ -53,7 +53,7 @@ ${CURDIR}/build/openssl.setenv:
 	export ANDROID_EABI_PREFIX=aarch64-linux-android;\
 	export _ANDROID_EABI=$${ANDROID_EABI_PREFIX}-4.9;\
 	export _ANDROID_ARCH=arch-arm64;\
-	export _ANDROID_API="android-24";\
+	export _ANDROID_API="android-21";\
 	source ${CURDIR}/build/openssl.setenv;\
 	echo "env: " &&\
 	env &&\
