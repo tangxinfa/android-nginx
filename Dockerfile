@@ -13,7 +13,7 @@ RUN apt-get install -y openssh-client
 RUN echo no | dpkg-reconfigure dash
 RUN apt-get install -y python
 COPY ndk.env /root/android-nginx/
-COPY remote.run /root/android-nginx/
+COPY cross-execute /root/android-nginx/
 COPY Makefile /root/android-nginx/
 
 WORKDIR /root/android-nginx

@@ -1,7 +1,7 @@
 .PHONY: all build build_toolchain build_openssl build_pcre build_nginx
 
 SHELL := /bin/bash
-DOCKER_IMAGE ?= android-nginx:0.0.1
+DOCKER_IMAGE ?= android-nginx:0.0.2
 NGINX_MODULES := $(addprefix --add-module=,$(wildcard ${CURDIR}/nginx-modules/nginx_module_*))
 
 all:
@@ -31,7 +31,7 @@ ${CURDIR}/build/android-ndk: ${CURDIR}/build/android-ndk-r15c-linux-x86_64.zip
 	mv ${CURDIR}/build/android-ndk-r15c ${CURDIR}/build/android-ndk
 
 ${CURDIR}/build/android-toolchain: ${CURDIR}/build/android-ndk
-	${CURDIR}/build/android-ndk/build/tools/make_standalone_toolchain.py --arch arm64 --api 21 --stl=libc++ --deprecated-headers --install-dir ${CURDIR}/build/android-toolchain
+	${CURDIR}/build/android-ndk/build/tools/make_standalone_toolchain.py --arch arm64 --api 21 --stl=libc++ --unified-headers --install-dir ${CURDIR}/build/android-toolchain
 
 
 # Build openssl
@@ -59,8 +59,7 @@ ${CURDIR}/build/openssl.setenv:
 	env &&\
 	echo "" &&\
 	cd ${CURDIR}/build/openssl-OpenSSL_1_1_0-stable &&\
-    ./Configure dist &&\
-    ./Configure no-ssl2 no-ssl3 no-comp no-hw no-engine no-shared --openssldir=/opt/local/ --prefix=/opt/local/ linux-generic64 -DB_ENDIAN -B$${ANDROID_DEV}/lib \
+    ./Configure android64-aarch64 no-ssl2 no-ssl3 no-comp no-hw no-engine no-shared --openssldir=/opt/local/ --prefix=/opt/local/ -B$${ANDROID_DEV}/lib \
 		        -I$${ANDROID_DEV}/include -L$${ANDROID_DEV}/lib \
 		        -fPIE -pie &&\
     make -j6 &&\
@@ -94,9 +93,9 @@ ${CURDIR}/build/nginx-1.14.0: ${CURDIR}/build/nginx-1.14.0.tar.gz
 	rm -rf "${CURDIR}/build/nginx-1.14.0" &&\
 	tar xzvf ${CURDIR}/build/nginx-1.14.0.tar.gz -C ${CURDIR}/build/ &&\
 	cd ${CURDIR}/build/nginx-1.14.0 &&\
-	sed -i -e 's/\/bin\/sh -c $$NGX_AUTOTEST/timeout 10 remote.run -f $$NGX_AUTOTEST/g' `find auto -type f` &&\
-	sed -i -e 's/$$NGX_AUTOTEST >\/dev\/null/timeout 10 remote.run -f $$NGX_AUTOTEST >\/dev\/null/g' `find auto -type f` &&\
-	sed -i -e 's/`$$NGX_AUTOTEST`/`timeout 10 remote.run -f $$NGX_AUTOTEST`/g' `find auto -type f` &&\
+	sed -i -e 's/\/bin\/sh -c $$NGX_AUTOTEST/timeout 10 \/root\/android-nginx\/cross-execute $$NGX_AUTOTEST/g' `find auto -type f` &&\
+	sed -i -e 's/$$NGX_AUTOTEST >\/dev\/null/timeout 10 \/root\/android-nginx\/cross-execute $$NGX_AUTOTEST >\/dev\/null/g' `find auto -type f` &&\
+	sed -i -e 's/`$$NGX_AUTOTEST`/`timeout 10 \/root\/android-nginx\/cross-execute $$NGX_AUTOTEST`/g' `find auto -type f` &&\
 	sed -i -e 's/#include <crypt.h>/#if (NGX_HAVE_CRYPT_H)\n#include <crypt.h>\n#endif\n#include <openssl\/des.h>/g' src/os/unix/ngx_linux_config.h &&\
 	sed -i -e 's/= crypt(/= DES_crypt(/g' src/os/unix/ngx_user.c &&\
 	wget https://github.com/tatowilson/Cross-Compile-Nginx-with-RTMP-Module-for-Android/raw/master/glob/glob.h -O src/os/unix/glob.h &&\
@@ -111,6 +110,6 @@ ${CURDIR}/build/nginx-1.14.0: ${CURDIR}/build/nginx-1.14.0.tar.gz
 	env &&\
 	echo "" &&\
 	cd ${CURDIR}/build/nginx-1.14.0 &&\
-	CC_TEST_FLAGS="$${CFLAGS} $${LDFLAGS}" ./configure --prefix=/opt/local --with-ld-opt="$${LDFLAGS}" --with-cc-opt="-DIOV_MAX=1024 -D_FILE_OFFSET_BITS=64" --crossbuild=`timeout 10 remote.run -c 'uname -srm' | tr ' ' ':'` --user=root --group=root --with-select_module --with-poll_module --with-file-aio --with-http_ssl_module --without-mail_pop3_module --without-mail_imap_module  --without-mail_smtp_module ${NGINX_MODULES} &&\
+	CC_TEST_FLAGS="$${CFLAGS} $${LDFLAGS}" CFLAGS="$${CFLAGS} -I${CURDIR}/build/android-ndk/platforms/android-$${ANDROID_API}/arch-$${ANDROID_ARCH}/usr/include" ./configure --prefix=/opt/local --with-ld-opt="$${LDFLAGS}" --with-cc-opt="-DIOV_MAX=1024 -D_FILE_OFFSET_BITS=64" --crossbuild=`timeout 10 /root/android-nginx/cross-execute 'uname -srm' | tr ' ' ':'` --user=root --group=root --with-select_module --with-poll_module --with-file-aio --with-http_ssl_module --without-mail_pop3_module --without-mail_imap_module  --without-mail_smtp_module ${NGINX_MODULES} &&\
 	make &&\
 	make install

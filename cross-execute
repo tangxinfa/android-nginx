@@ -1,0 +1,35 @@
+#!/bin/bash
+
+LOG_FILE=${CROSS_EXECUTE_LOG_FILE:-/dev/null}
+
+if [ "$#" -lt "1" ] ; then
+    echo "Usage: $0 <file or command> [argument1 argument2 ...]" >> $LOG_FILE
+    exit 22 #Invalid argument
+fi
+
+if [ -z "$CROSS_COMPILE_DEVICE_IP" ]; then
+   echo 'Error: CROSS_COMPILE_DEVICE_IP environment variable invalid' >> $LOG_FILE
+   exit 22 #Invalid argument
+fi
+
+adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+adb wait-for-device >>$LOG_FILE 2>&1
+adb root >>$LOG_FILE 2>&1
+adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+adb wait-for-device >>$LOG_FILE 2>&1
+adb remount >>$LOG_FILE 2>&1
+adb connect ${CROSS_COMPILE_DEVICE_IP}:${CROSS_COMPILE_DEVICE_PORT:-5555} >>$LOG_FILE 2>&1
+adb wait-for-device >>$LOG_FILE 2>&1
+
+echo "Cross execute: $@" >> $LOG_FILE
+PROGRAM=$1
+
+if [ -x "$PROGRAM" ]; then
+    tempfile=`mktemp -u XXXXXXXX`
+    tempdir=/tmp/cross-compile
+    adb shell mkdir ${tempdir} >/dev/null 2>&1
+    adb push ${PROGRAM} ${tempdir}/${tempfile} >>$LOG_FILE 2>&1
+    adb shell "cd ${tempdir} && ls -1 -t | tail -n +100 | xargs -I% rm '%' >/dev/null 2>&1; cd ${tempdir} && chmod a+x $tempfile && ./$tempfile ${@:2}"
+else
+    adb shell $@
+fi
